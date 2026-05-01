@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0e0e0e">
+<title>句</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@300;400&family=Space+Mono:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0e0e0e;
+    --surface: #161616;
+    --border: #2a2a2a;
+    --text: #e8e2d8;
+    --dim: #6b6560;
+    --accent: #c8b99a;
+    --danger: #8a4a4a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Serif SC', serif;
+    min-height: 100vh;
+    min-height: 100dvh;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0.4;
+  }
+
+  /* main view */
+  #main {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 40px;
+    position: relative;
+    cursor: default;
+  }
+
+  .quote-wrap {
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+  }
+
+  .quote-mark {
+    font-family: 'Space Mono', monospace;
+    font-size: 72px;
+    color: var(--border);
+    line-height: 0.6;
+    margin-bottom: 24px;
+    display: block;
+    user-select: none;
+  }
+
+  #quote-text {
+    font-size: clamp(16px, 4.2vw, 22px);
+    line-height: 2;
+    font-weight: 300;
+    letter-spacing: 0.08em;
+    color: var(--text);
+    min-height: 3em;
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+
+  #quote-text.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .meta {
+    margin-top: 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .counter {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  .dot-sep {
+    width: 3px;
+    height: 3px;
+    border-radius: 50%;
+    background: var(--border);
+  }
+
+  .next-time {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.05em;
+  }
+
+  /* bottom bar */
+  .bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 32px 32px;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+  }
+
+  .icon-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--dim);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    padding: 8px 14px;
+    border-radius: 2px;
+    cursor: pointer;
+    letter-spacing: 0.08em;
+    transition: color 0.2s, border-color 0.2s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .icon-btn:hover, .icon-btn:active {
+    color: var(--accent);
+    border-color: var(--accent);
+  }
+
+  .skip-btn {
+    padding: 8px 20px;
+  }
+
+  /* panel overlay */
+  #panel {
+    position: fixed;
+    inset: 0;
+    background: var(--bg);
+    z-index: 50;
+    display: none;
+    flex-direction: column;
+    padding: 56px 28px 32px;
+    overflow-y: auto;
+  }
+
+  #panel.open { display: flex; }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 32px;
+  }
+
+  .panel-title {
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .close-btn {
+    background: none;
+    border: none;
+    color: var(--dim);
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* settings */
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .setting-label {
+    font-size: 14px;
+    color: var(--text);
+    letter-spacing: 0.05em;
+  }
+
+  .setting-sub {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--dim);
+    margin-top: 4px;
+  }
+
+  .hour-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'Space Mono', monospace;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 2px;
+    appearance: none;
+    cursor: pointer;
+    min-width: 72px;
+    text-align: center;
+  }
+
+  /* quote list */
+  .section-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--dim);
+    text-transform: uppercase;
+    margin: 32px 0 16px;
+  }
+
+  .add-area {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .quote-input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text);
+    font-family: 'Noto Serif SC', serif;
+    font-size: 14px;
+    line-height: 1.8;
+    padding: 12px 14px;
+    resize: none;
+    height: 80px;
+    letter-spacing: 0.05em;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .quote-input:focus { border-color: var(--accent); }
+  .quote-input::placeholder { color: var(--dim); }
+
+  .add-btn {
+    background: var(--accent);
+    border: none;
+    color: var(--bg);
+    font-family: 'Space Mono', monospace;
+    font-size: 18px;
+    width: 44px;
+    border-radius: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+  }
+
+  .add-btn:hover { opacity: 0.85; }
+
+  .quote-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 80px;
+  }
+
+  .quote-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 14px 14px 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    position: relative;
+  }
+
+  .quote-item.current-item {
+    border-color: var(--accent);
+  }
+
+  .quote-item-text {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.9;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    word-break: break-all;
+  }
+
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--dim);
+    font-size: 16px;
+    cursor: pointer;
+    padding: 2px 4px;
+    flex-shrink: 0;
+    line-height: 1;
+    transition: color 0.2s;
+  }
+
+  .del-btn:hover { color: var(--danger); }
+
+  .current-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+    margin-top: 8px;
+  }
+
+  .empty-hint {
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--dim);
+    text-align: center;
+    padding: 32px 0;
+    letter-spacing: 0.08em;
+  }
+
+  /* progress bar */
+  .progress-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 1px;
+    background: var(--accent);
+    opacity: 0.5;
+    transition: width 1s linear;
+    z-index: 200;
+  }
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progress"></div>
+
+<div id="main">
+  <div class="quote-wrap">
+    <span class="quote-mark">"</span>
+    <div id="quote-text"></div>
+    <div class="meta">
+      <span class="counter" id="counter"></span>
+      <div class="dot-sep"></div>
+      <span class="next-time" id="next-time"></span>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <button class="icon-btn" onclick="openPanel()">管理 / 设置</button>
+  <button class="icon-btn skip-btn" onclick="skipQuote()">下一句</button>
+</div>
+
+<div id="panel">
+  <div class="panel-header">
+    <span class="panel-title">句子库</span>
+    <button class="close-btn" onclick="closePanel()">×</button>
+  </div>
+
+  <div class="setting-row">
+    <div>
+      <div class="setting-label">切换间隔</div>
+      <div class="setting-sub">每隔多少小时自动换句</div>
+    </div>
+    <select class="hour-select" id="interval-select" onchange="saveInterval()">
+      <option value="1">1 h</option>
+      <option value="2">2 h</option>
+      <option value="3">3 h</option>
+      <option value="4">4 h</option>
+      <option value="6">6 h</option>
+      <option value="8">8 h</option>
+      <option value="12">12 h</option>
+      <option value="24">24 h</option>
+    </select>
+  </div>
+
+  <div class="section-label">添加句子</div>
+
+  <div class="add-area">
+    <textarea class="quote-input" id="new-quote" placeholder="粘贴或输入句子…"></textarea>
+    <button class="add-btn" onclick="addQuote()">+</button>
+  </div>
+
+  <div class="section-label">全部句子 <span id="total-count"></span></div>
+  <div class="quote-list" id="quote-list"></div>
+</div>
+
+<script>
+  // ── storage keys ──
+  const K_QUOTES   = 'q_quotes';
+  const K_INDEX    = 'q_index';
+  const K_NEXT     = 'q_next';
+  const K_INTERVAL = 'q_interval';
+
+  // ── state ──
+  let quotes   = [];
+  let current  = 0;
+  let interval = 3; // hours
+  let nextTime = 0;
+  let ticker   = null;
+
+  function load() {
+    try {
+      const q = localStorage.getItem(K_QUOTES);
+      quotes = q ? JSON.parse(q) : defaultQuotes();
+    } catch { quotes = defaultQuotes(); }
+    current  = parseInt(localStorage.getItem(K_INDEX)  || '0');
+    interval = parseInt(localStorage.getItem(K_INTERVAL) || '3');
+    nextTime = parseInt(localStorage.getItem(K_NEXT)   || '0');
+    if (current >= quotes.length) current = 0;
+  }
+
+  function save() {
+    localStorage.setItem(K_QUOTES,   JSON.stringify(quotes));
+    localStorage.setItem(K_INDEX,    current);
+    localStorage.setItem(K_INTERVAL, interval);
+    localStorage.setItem(K_NEXT,     nextTime);
+  }
+
+  function defaultQuotes() {
+    return [
+      '在这里加入你喜欢的句子吧',
+    ];
+  }
+
+  // ── display ──
+  function showQuote(animate = true) {
+    const el = document.getElementById('quote-text');
+    if (animate) {
+      el.classList.remove('visible');
+      setTimeout(() => {
+        el.textContent = quotes[current] || '';
+        el.classList.add('visible');
+      }, 300);
+    } else {
+      el.textContent = quotes[current] || '';
+      el.classList.add('visible');
+    }
+    updateMeta();
+  }
+
+  function updateMeta() {
+    document.getElementById('counter').textContent =
+      `${current + 1} / ${quotes.length}`;
+
+    const remaining = nextTime - Date.now();
+    if (remaining > 0) {
+      const mins = Math.round(remaining / 60000);
+      const hrs  = Math.floor(mins / 60);
+      const m    = mins % 60;
+      document.getElementById('next-time').textContent =
+        hrs > 0 ? `${hrs}h ${m}m 后切换` : `${m}m 后切换`;
+    } else {
+      document.getElementById('next-time').textContent = '即将切换';
+    }
+
+    updateProgress();
+  }
+
+  function updateProgress() {
+    const total    = interval * 3600 * 1000;
+    const elapsed  = total - (nextTime - Date.now());
+    const pct      = Math.min(100, Math.max(0, (elapsed / total) * 100));
+    document.getElementById('progress').style.width = pct + '%';
+  }
+
+  // ── timer ──
+  function scheduleNext() {
+    if (!nextTime || nextTime < Date.now()) {
+      nextTime = Date.now() + interval * 3600 * 1000;
+      save();
+    }
+  }
+
+  function startTicker() {
+    if (ticker) clearInterval(ticker);
+    ticker = setInterval(() => {
+      if (Date.now() >= nextTime) {
+        advance();
+      } else {
+        updateMeta();
+      }
+    }, 30000); // check every 30s
+  }
+
+  function advance() {
+    if (!quotes.length) return;
+    current = (current + 1) % quotes.length;
+    nextTime = Date.now() + interval * 3600 * 1000;
+    save();
+    showQuote(true);
+  }
+
+  function skipQuote() {
+    advance();
+  }
+
+  // ── settings ──
+  function saveInterval() {
+    interval = parseInt(document.getElementById('interval-select').value);
+    nextTime = Date.now() + interval * 3600 * 1000;
+    save();
+    updateMeta();
+  }
+
+  // ── panel ──
+  function openPanel() {
+    document.getElementById('panel').classList.add('open');
+    document.getElementById('interval-select').value = interval;
+    renderList();
+  }
+
+  function closePanel() {
+    document.getElementById('panel').classList.remove('open');
+    showQuote(false);
+  }
+
+  function renderList() {
+    const list = document.getElementById('quote-list');
+    document.getElementById('total-count').textContent = `(${quotes.length})`;
+    if (!quotes.length) {
+      list.innerHTML = '<div class="empty-hint">还没有句子</div>';
+      return;
+    }
+    list.innerHTML = quotes.map((q, i) => `
+      <div class="quote-item ${i === current ? 'current-item' : ''}">
+        ${i === current ? '<div class="current-dot"></div>' : '<div style="width:5px;flex-shrink:0"></div>'}
+        <div class="quote-item-text">${escHtml(q)}</div>
+        <button class="del-btn" onclick="deleteQuote(${i})">×</button>
+      </div>
+    `).join('');
+  }
+
+  function addQuote() {
+    const inp = document.getElementById('new-quote');
+    const text = inp.value.trim();
+    if (!text) return;
+    quotes.push(text);
+    save();
+    inp.value = '';
+    renderList();
+  }
+
+  function deleteQuote(i) {
+    quotes.splice(i, 1);
+    if (current >= quotes.length) current = Math.max(0, quotes.length - 1);
+    save();
+    renderList();
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // ── new quote input: enter to submit ──
+  document.getElementById('new-quote').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addQuote(); }
+  });
+
+  // ── init ──
+  load();
+  scheduleNext();
+  showQuote(false);
+  startTicker();
+
+  // update meta every minute for countdown accuracy
+  setInterval(updateMeta, 60000);
+</script>
+</body>
+</html>
